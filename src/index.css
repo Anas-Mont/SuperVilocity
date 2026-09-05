@@ -1,0 +1,368 @@
+@import "tailwindcss";
+
+:root {
+  --accent: #53e9ff;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #070512;
+}
+
+body {
+  font-family: "Rajdhani", system-ui, sans-serif;
+  color: #e8ecff;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.font-display {
+  font-family: "Orbitron", "Rajdhani", sans-serif;
+}
+
+/* ---------- keyframes ---------- */
+@keyframes kf-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes kf-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes kf-countdown {
+  0% {
+    opacity: 0;
+    transform: scale(2.4);
+    filter: blur(10px);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+@keyframes kf-toast {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.8);
+  }
+  12% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.92);
+  }
+}
+@keyframes kf-flash {
+  0% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes kf-pulse-soft {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+@keyframes kf-sheen {
+  0% {
+    transform: translateX(-130%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(260%) skewX(-18deg);
+  }
+}
+@keyframes kf-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+@keyframes kf-drift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -600px 0;
+  }
+}
+@keyframes kf-rotate-hint {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(90deg);
+  }
+}
+
+.anim-fade-up {
+  opacity: 0;
+  animation: kf-fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.anim-pop {
+  animation: kf-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.anim-countdown {
+  animation: kf-countdown 0.9s ease-out both;
+}
+.anim-toast {
+  animation: kf-toast 1.25s ease-out both;
+}
+.anim-flash {
+  animation: kf-flash 0.5s ease-out both;
+}
+.anim-pulse-soft {
+  animation: kf-pulse-soft 1.6s ease-in-out infinite;
+}
+.anim-blink {
+  animation: kf-blink 0.9s step-end infinite;
+}
+
+/* ---------- reusable decorations ---------- */
+.clip-notch {
+  clip-path: polygon(
+    14px 0,
+    100% 0,
+    100% calc(100% - 14px),
+    calc(100% - 14px) 100%,
+    0 100%,
+    0 14px
+  );
+}
+
+.hud-num {
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 18px rgba(90, 220, 255, 0.35), 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+.text-glow {
+  text-shadow: 0 0 24px rgba(83, 233, 255, 0.45), 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+
+.panel-glass {
+  background: linear-gradient(160deg, rgba(10, 12, 30, 0.78), rgba(6, 8, 22, 0.6));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(120, 200, 255, 0.16);
+}
+
+.scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.028) 0px,
+    rgba(255, 255, 255, 0.028) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: overlay;
+}
+
+.vignette {
+  background: radial-gradient(ellipse at center, transparent 42%, rgba(2, 2, 10, 0.55) 100%);
+}
+
+.btn-sheen {
+  position: relative;
+  overflow: hidden;
+}
+.btn-sheen::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(140, 230, 255, 0.16), transparent);
+  transform: translateX(-130%) skewX(-18deg);
+}
+.btn-sheen:hover::before {
+  animation: kf-sheen 0.7s ease-out;
+}
+
+.title-gradient {
+  background: linear-gradient(100deg, #9ff3ff 0%, #53e9ff 38%, #ff7ad9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 26px rgba(83, 233, 255, 0.35));
+}
+
+/* show controls only on coarse (touch) pointers */
+.coarse-only {
+  display: none;
+}
+@media (pointer: coarse) {
+  .coarse-only {
+    display: flex;
+  }
+}
+
+/* short landscape phones — tighten the HUD so nothing crowds the view */
+@media (max-height: 460px) and (pointer: coarse) {
+  .hud-num {
+    line-height: 1;
+  }
+  /* keep the thumb cluster inside the natural thumb arc */
+  .hud-cluster {
+    transform: scale(0.88);
+    transform-origin: bottom right;
+  }
+}
+
+/* ---- compact UI for short screens (landscape phones) ---- */
+@media (max-height: 560px) {
+  .menu-root {
+    justify-content: flex-start;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+  .menu-title {
+    font-size: 2.75rem;
+    margin-top: 0.25rem;
+  }
+  .menu-kicker {
+    font-size: 8px;
+    letter-spacing: 0.35em;
+  }
+  .menu-sub {
+    font-size: 0.78rem;
+    margin-top: 0.5rem;
+    max-width: 30rem;
+  }
+  .menu-actions {
+    margin-top: 0.85rem !important;
+    gap: 0.45rem !important;
+  }
+  .menu-actions button {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    font-size: 0.68rem !important;
+  }
+  .menu-stars {
+    margin-top: 0.6rem;
+    padding-top: 0.15rem;
+    padding-bottom: 0.15rem;
+  }
+  .menu-best {
+    margin-top: 0.55rem;
+    font-size: 8.5px;
+  }
+}
+
+/* very short: hide non-essential chrome so buttons always fit */
+@media (max-height: 430px) {
+  .menu-sub,
+  .menu-best {
+    display: none;
+  }
+  .menu-title {
+    font-size: 2.25rem;
+  }
+}
+
+/* nicer scrollbars inside overlay panels */
+.ui-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 200, 255, 0.35) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+.ui-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.ui-scroll::-webkit-scrollbar-thumb {
+  background: rgba(120, 200, 255, 0.32);
+  border-radius: 9999px;
+}
+
+/* notched-phone safe areas — applied to the HUD, not the canvas, so the
+   3D view still fills the display edge to edge. */
+@supports (padding: env(safe-area-inset-left)) {
+  .hud-top {
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+  .hud-bottom {
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+  .hud-cluster {
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* range sliders */
+input[type="range"] {
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 9999px;
+  background: #53e9ff;
+  box-shadow: 0 0 10px rgba(83, 233, 255, 0.75);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border: none;
+  border-radius: 9999px;
+  background: #53e9ff;
+  box-shadow: 0 0 10px rgba(83, 233, 255, 0.75);
+  cursor: pointer;
+}
+
+/* make every clickable control feel clickable */
+button:not(:disabled) {
+  cursor: pointer;
+}
