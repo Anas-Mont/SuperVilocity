@@ -6,15 +6,24 @@ import {
   PauseMenu, GameOverScreen, CompleteScreen,
 } from "./components/Screens";
 import { RotateGate, FullscreenButton, usePortraitPhone, goFullscreenLandscape } from "./components/Orientation";
+import Leaderboard from "./components/Leaderboard";
+import { NamePrompt, Tutorial } from "./components/Onboarding";
+import {
+  submitScore, fetchBoard, myRank, createBoard, joinBoard, leaveBoard, activeBoardId,
+} from "./game/leaderboard";
 import { Game, HUDState, RunResult, ToastKind } from "./game/engine";
 import { LevelConfig, LEVELS } from "./game/levels";
-import { ShipDef } from "./game/ships";
+import { ShipDef, getShipDef } from "./game/ships";
 import {
   getSettings, saveSettings, saveResult, setUnlocked, getUnlocked, Settings,
   getStars, addStars, spendStars, getOwned, ownShip, getShip, selectShip,
+  getName, setName, isTutorialDone, setTutorialDone, buyUpgrade,
+  buyPrestige, getPrestige, prestigeTitle,
 } from "./game/storage";
 
-type Screen = "menu" | "levels" | "howto" | "settings" | "hangar" | "playing" | "over" | "complete";
+type Screen =
+  | "menu" | "levels" | "howto" | "settings" | "hangar"
+  | "board" | "playing" | "over" | "complete";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("menu");
@@ -31,6 +40,13 @@ export default function App() {
   const [stars, setStars] = useState(getStars());
   const [owned, setOwned] = useState<string[]>(getOwned());
   const [shipId, setShipId] = useState(getShip());
+  const [pilot, setPilot] = useState(getName());
+  const [showTut, setShowTut] = useState(false);
+  const [rank, setRank] = useState(0);
+  const [boardId, setBoardIdState] = useState(activeBoardId());
+  const [boardBusy, setBoardBusy] = useState(false);
+  const [boardMsg, setBoardMsg] = useState("");
+  const [upgTick, setUpgTick] = useState(0);
 
   const engineRef = useRef<Game | null>(null);
   const levelRef = useRef<LevelConfig | null>(null);
@@ -64,6 +80,17 @@ export default function App() {
   useEffect(() => {
     void Game.detectRefreshRate().then(setRefreshHz);
   }, []);
+
+  /* pull the player's rank for the menu card */
+  useEffect(() => {
+    if (screen !== "menu" || !pilot) return;
+    void fetchBoard().then((r) => setRank(myRank(r.entries)));
+  }, [screen, pilot]);
+
+  /* show the tutorial once, right after registration */
+  useEffect(() => {
+    if (pilot && !isTutorialDone()) setShowTut(true);
+  }, [pilot]);
 
   const addToast = (text: string, kind: ToastKind) => {
     const id = ++toastId.current;
@@ -125,10 +152,23 @@ export default function App() {
     }
   };
 
+  /** Push a finished run to the leaderboard (never blocks the UI). */
+  const postScore = (r: RunResult) => {
+    const lv = levelRef.current;
+    if (!pilot || r.score < 100) return;
+    void submitScore({
+      score: r.score,
+      dist: r.dist,
+      zone: lv ? lv.name : "—",
+      ship: `${prestigeTitle(getPrestige())} · ${getShipDef(shipId).name}`,
+    }).then((res) => setRank(myRank(res.entries)));
+  };
+
   const handleGameOver = (r: RunResult) => {
     const lv = levelRef.current;
     const rec = saveResult(lv?.endless ? "endless" : (lv?.id ?? 0), r.score, r.dist);
     bankStars(r);
+    postScore(r);
     setRecord(rec);
     setResult(r);
     setPaused(false);
@@ -145,6 +185,7 @@ export default function App() {
     // clearing a zone pays a star bonus
     const bonus = lv && !lv.endless ? 30 : 0;
     bankStars({ ...r, stars: r.stars + bonus });
+    postScore(r);
     setResult({ ...r, stars: r.stars + bonus });
     setScreen("complete");
   };
@@ -172,6 +213,31 @@ export default function App() {
     setShipId(s.id);
     engineRef.current?.setShip(s.id);
     engineRef.current?.sound.uiClick();
+  };
+
+  /* ---------------- online board handlers ---------------- */
+  const boardCreate = () => {
+    setBoardBusy(true);
+    setBoardMsg("");
+    void createBoard()
+      .then((id) => {
+        setBoardIdState(id);
+        setBoardMsg("Board created. Use COPY INVITE LINK to share it.");
+      })
+      .catch((e: unknown) => setBoardMsg(`Could not create board: ${e instanceof Error ? e.message : "network error"}`))
+      .finally(() => setBoardBusy(false));
+  };
+
+  const boardJoin = (v: string) => {
+    const id = joinBoard(v);
+    setBoardIdState(id);
+    setBoardMsg(id ? "Joined. Open RANKS to sync." : "That did not look like a board id.");
+  };
+
+  const boardLeave = () => {
+    leaveBoard();
+    setBoardIdState("");
+    setBoardMsg("Disconnected — scores stay on this device.");
   };
 
   const lv = levelRef.current;
@@ -232,17 +298,23 @@ export default function App() {
       {screen === "menu" && (
         <MainMenu
           stars={stars}
+          pilot={pilot}
+          rank={rank}
           onPlay={() => setScreen("levels")}
           onHangar={() => setScreen("hangar")}
+          onBoard={() => setScreen("board")}
+          onTutorial={() => setShowTut(true)}
           onHow={() => setScreen("howto")}
           onSettings={() => setScreen("settings")}
         />
       )}
+      {screen === "board" && <Leaderboard onBack={() => setScreen("menu")} />}
       {screen === "levels" && (
         <LevelSelect unlocked={unlocked} onSelect={startLevel} onBack={() => setScreen("menu")} />
       )}
       {screen === "hangar" && (
         <Hangar
+          key={upgTick}
           stars={stars}
           owned={owned}
           selected={shipId}
@@ -255,6 +327,20 @@ export default function App() {
             g.sound.ensure();
             g.sound.rev(s.sound);
           }}
+          onUpgrade={(s, k) => {
+            if (buyUpgrade(s.id, k)) {
+              setStars(getStars());
+              setUpgTick((t) => t + 1);
+              engineRef.current?.sound.repair();
+            }
+          }}
+          onPrestige={() => {
+            if (buyPrestige()) {
+              setStars(getStars());
+              setUpgTick((t) => t + 1);
+              engineRef.current?.sound.win();
+            }
+          }}
         />
       )}
       {screen === "howto" && <HowToPlay onBack={() => setScreen("menu")} />}
@@ -265,6 +351,14 @@ export default function App() {
           onBack={() => setScreen("menu")}
           fpsLive={fpsLive}
           refreshHz={refreshHz}
+          board={{
+            id: boardId,
+            busy: boardBusy,
+            msg: boardMsg,
+            onCreate: boardCreate,
+            onJoin: boardJoin,
+            onLeave: boardLeave,
+          }}
         />
       )}
       {screen === "over" && result && (
@@ -284,6 +378,40 @@ export default function App() {
           onNext={goNext}
           onReplay={restartLevel}
           onQuit={quitToMenu}
+        />
+      )}
+
+      {/* first-launch registration, then the tutorial */}
+      {!pilot && (
+        <NamePrompt
+          onDone={(n, snd) => {
+            setName(n);
+            setPilot(n);
+            const next = { ...settings, sfx: snd, music: snd };
+            saveSettings(next);
+            setSettings(next);
+            // apply immediately — the effect runs after paint, which let
+            // audio start before the player's choice registered.
+            const g = engineRef.current;
+            if (g) {
+              g.sound.ensure();
+              g.applySettings(next);
+              if (snd) g.sound.uiClick();
+            }
+          }}
+        />
+      )}
+      {pilot && showTut && screen !== "playing" && (
+        <Tutorial
+          onDone={() => {
+            setTutorialDone();
+            setShowTut(false);
+            setScreen("levels");
+          }}
+          onSkip={() => {
+            setTutorialDone();
+            setShowTut(false);
+          }}
         />
       )}
 

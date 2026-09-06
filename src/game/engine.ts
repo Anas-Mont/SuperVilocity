@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { LevelConfig, Theme, ENDLESS_CYCLE, MENU_THEME } from "./levels";
 import { SoundFX } from "./audio";
 import { ShipDef, getShipDef, ABILITIES } from "./ships";
+import { getUpgrades, getPrestige, prestigeBonus } from "./storage";
 import { buildShipMesh, BuiltShip } from "./shipBuilder";
 import { clamp, lerp, damp, rand, randInt, pickWeighted } from "./utils";
 
@@ -16,6 +17,8 @@ export interface HUDState {
   modernUi: boolean;
   /** desktop-only HUD lean, in px */
   tiltHud: number;
+  /** seconds remaining in TIME ATTACK (0 = not a timed mode) */
+  timeLeft: number;
   abilityName: string;
   abilityReady: boolean;
   abilityActive: boolean;
@@ -247,6 +250,10 @@ export class Game {
   private shieldMesh: THREE.Mesh | null = null;
   private abilityT = 0;
   private abilityCd = 0;
+  private upHandling = 0;
+  private prestigeMult = 1;
+  private upBoost = 0;
+  private timeLeft = 0;
 
   /* tuning from settings */
   private sens = 1;
@@ -389,8 +396,9 @@ export class Game {
       let dt = (now - this.last) / 1000;
       this.last = now;
       if (dt <= 0) dt = 0.0001;
-      // FPS cap: skip frames until the frame budget is consumed
-      if (this.fpsLimit > 0) {
+      // FPS cap: skip frames until the frame budget is consumed.
+      // A limit at/above the display's refresh rate is a no-op (uncapped).
+      if (this.fpsLimit > 0 && this.fpsLimit < 500) {
         this.fpsAcc += dt;
         if (this.fpsAcc < 1 / this.fpsLimit - 0.0015) return;
         dt = Math.min(0.05, this.fpsAcc);
@@ -579,8 +587,14 @@ export class Game {
     // reset run
     this.score = 0;
     this.starCount = 0;
-    this.maxHearts = this.shipDef.hull;
-    this.hearts = this.shipDef.hull;
+    // apply purchased upgrades on top of the craft's base stats
+    const up = getUpgrades(this.shipDef.id);
+    this.upHandling = up.handling;
+    this.prestigeMult = prestigeBonus(getPrestige());
+    this.upBoost = up.boost;
+    this.maxHearts = level.oneLife ? 1 : Math.min(6, this.shipDef.hull + up.hull);
+    this.hearts = this.maxHearts;
+    this.timeLeft = level.timed ?? 0;
     this.boost = 100;
     this.dist = 0;
     this.speed = level.baseSpeed * 0.6;
@@ -1771,7 +1785,7 @@ export class Game {
   private scoreMult() {
     let m = this.isBoosting() ? 2 : 1;
     if (this.abilityT > 0 && this.shipDef.ability === "magnet") m *= 3;
-    return m;
+    return m * this.prestigeMult;
   }
 
   /** Player pressed the ability key/button. */
@@ -2024,7 +2038,12 @@ export class Game {
           this.score += 50 * mult;
           r.pulse = 1;
           this.sound.ring();
-          this.events.onToast(`GATE +${50 * mult}`, "bonus");
+          if (this.level?.timed) {
+            this.timeLeft += 3;
+            this.events.onToast("GATE +3s", "bonus");
+          } else {
+            this.events.onToast(`GATE +${50 * mult}`, "bonus");
+          }
         }
       }
       // glancing hit on ring body
@@ -2226,6 +2245,7 @@ export class Game {
             this.score += 25 * mult;
             this.starCount++;
             this.sound.pickup();
+            if (this.level?.timed) this.timeLeft += 0.6;
           }
           continue;
         }
@@ -2441,7 +2461,7 @@ export class Game {
     /* ---- critically-damped spring flight model ----
        Fixed substeps make motion identical at 30 / 60 / 144 / 240 fps,
        and kill the micro-stutter the old exponential damp had on phones. */
-    const k = (250 - this.smooth * 185) * this.shipDef.handling;
+    const k = (250 - this.smooth * 185) * (this.shipDef.handling + this.upHandling * 0.12);
     const c = 2 * Math.sqrt(k); // critical damping = no overshoot wobble
     const steps = Math.min(8, Math.max(1, Math.ceil(dt / 0.005)));
     const h = dt / steps;
@@ -2526,6 +2546,7 @@ export class Game {
       maxHearts: this.maxHearts,
       fps: Math.round(this.fpsEma),
       modernUi: this.modernUi,
+      timeLeft: this.level?.timed ? this.timeLeft : 0,
       tiltHud: this.hudShake && !this.isMobile ? clamp(this.velX * 0.03, -6, 6) : 0,
       abilityName: ABILITIES[this.shipDef.ability].name,
       abilityReady: this.abilityCd <= 0 && this.abilityT <= 0,
@@ -2596,12 +2617,28 @@ export class Game {
           : clamp(this.dist / lv.target, 0, 1);
         const targetSpeed = lerp(lv.baseSpeed, Math.min(lv.maxSpeed, this.isEndless ? lv.maxSpeed + this.phase * 2 : lv.maxSpeed), Math.pow(this.p01, 0.85));
         const boosting = this.isBoosting();
-        const bp = 1 + 0.55 * this.shipDef.boostPower;
+        const bp = 1 + 0.55 * (this.shipDef.boostPower + this.upBoost * 0.07);
         this.speed = damp(this.speed, targetSpeed * (boosting ? bp : 1), 2.2, dt);
 
-        // boost meter
-        if (boosting) this.boost = Math.max(0, this.boost - 30 * this.shipDef.boostDrain * dt);
-        else this.boost = Math.min(100, this.boost + 15 * dt);
+        // boost meter (upgrades cut drain and speed recharge)
+        const drain = this.shipDef.boostDrain * (1 - this.upBoost * 0.12);
+        if (boosting) this.boost = Math.max(0, this.boost - 30 * drain * dt);
+        else this.boost = Math.min(100, this.boost + (15 + this.upBoost * 2.5) * dt);
+
+        // TIME ATTACK countdown
+        if (lv.timed) {
+          this.timeLeft -= dt;
+          if (this.timeLeft <= 0) {
+            this.timeLeft = 0;
+            this.mode = "dying";
+            this.modeT = 0;
+            this.dieVY = 4;
+            this.trauma = 1.2;
+            this.sound.death();
+            this.sound.engineSilent();
+            this.burst(this.ship.position.x, this.ship.position.y, 0);
+          }
+        }
 
         // score by distance
         this.score += this.speed * dt * (boosting ? 2 : 1);

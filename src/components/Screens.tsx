@@ -3,12 +3,16 @@ import {
   Play, Info, Settings as SettingsIcon, Trophy, Lock, ChevronRight,
   RotateCcw, Home, Rocket, Zap, Heart, Star, MousePointer2, Keyboard,
   Target, Infinity as InfinityIcon, Gauge, ArrowLeft, Check,
-  Smartphone, Activity, Sparkles, Layers, Volume2,
+  Smartphone, Activity, Sparkles, Layers, Volume2, Wifi, BookOpen, Medal, Crown,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { SHIPS, ShipDef, ABILITIES } from "../game/ships";
 import ShipPreview from "./ShipPreview";
-import { LEVELS, ZONES, STAGES, LevelConfig, ENDLESS_LEVEL } from "../game/levels";
+import { LEVELS, ZONES, STAGES, LevelConfig, ENDLESS_LEVEL, EXTRA_MODES } from "../game/levels";
+import {
+  getUpgrades, upgradeCost, MAX_TIER, UpgradeKind,
+  getPrestige, getSpent, prestigeCost, prestigeBonus, prestigeTitle,
+} from "../game/storage";
 import { RunResult } from "../game/engine";
 import { getBest, Settings } from "../game/storage";
 import { fmtScore } from "../game/utils";
@@ -89,19 +93,24 @@ function StatBlock({ label, value, sub }: { label: string; value: string; sub?: 
 /* ------------------------------------------------------------------ */
 
 export function MainMenu({
-  onPlay, onHow, onSettings, onHangar, stars,
+  onPlay, onHow, onSettings, onHangar, onBoard, onTutorial, stars, pilot, rank,
 }: {
   onPlay: () => void;
   onHow: () => void;
   onSettings: () => void;
   onHangar: () => void;
+  onBoard: () => void;
+  onTutorial: () => void;
   stars: number;
+  pilot: string;
+  rank: number;
 }) {
   let bestAll = 0;
   for (const lv of LEVELS) {
     const b = getBest(lv.endless ? "endless" : lv.id);
     if (b && b.score > bestAll) bestAll = b.score;
   }
+  const isAnas = pilot.toUpperCase() === "MUHAMMED ANAS" || pilot.toUpperCase() === "MOHAMMED ANAS";
   return (
     <div className="menu-root absolute inset-0 z-20 flex flex-col items-center justify-center overflow-y-auto bg-gradient-to-b from-[#05030e]/72 via-[#05030e]/30 to-[#05030e]/80 p-4 sm:p-6">
       {/* top ticker */}
@@ -129,26 +138,68 @@ export function MainMenu({
           ride the redline. No brakes aboard.
         </p>
 
-        <div className="anim-fade-up menu-actions mt-6 flex w-full max-w-sm flex-col gap-2.5 sm:mt-9 sm:gap-3" style={{ animationDelay: "240ms" }}>
+        {/* pilot card */}
+        <div
+          className="anim-fade-up mt-5 flex w-full max-w-sm items-center gap-3 border px-3 py-2"
+          style={{
+            animationDelay: "200ms",
+            borderColor: isAnas ? "#ffd16655" : "rgba(255,255,255,0.14)",
+            background: isAnas
+              ? "linear-gradient(90deg, rgba(255,209,102,0.16), transparent)"
+              : "rgba(255,255,255,0.035)",
+          }}
+        >
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border font-display text-sm font-black"
+            style={{
+              borderColor: isAnas ? "#ffd166" : "#53e9ff66",
+              color: isAnas ? "#ffd166" : "#53e9ff",
+            }}
+          >
+            {(pilot || "P").charAt(0)}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span
+                className="truncate font-display text-sm font-bold tracking-[0.15em]"
+                style={{ color: isAnas ? "#ffe9a8" : "#fff" }}
+              >
+                {pilot || "PILOT"}
+              </span>
+              {isAnas && (
+                <span className="shrink-0 rounded-sm bg-amber-300 px-1.5 py-px font-display text-[7px] font-black tracking-[0.15em] text-black">
+                  DEV
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-3 font-display text-[9px] tracking-[0.2em] text-white/40">
+              <span className="text-amber-200/90">{prestigeTitle(getPrestige())}</span>
+              <span className="flex items-center gap-1 text-amber-300/90">
+                <Star className="h-2.5 w-2.5" fill="currentColor" />
+                {fmtScore(stars)}
+              </span>
+              {bestAll > 0 && <span>BEST {fmtScore(bestAll)}</span>}
+              {rank > 0 && <span className="text-cyan-300">RANK #{rank}</span>}
+            </div>
+          </div>
+        </div>
+
+        <div className="anim-fade-up menu-actions mt-4 flex w-full max-w-sm flex-col gap-2.5 sm:mt-6 sm:gap-3" style={{ animationDelay: "240ms" }}>
           <MenuBtn icon={Play} label="Launch Flight" onClick={onPlay} primary />
-          <MenuBtn icon={Rocket} label="Hangar" onClick={onHangar} />
-          <MenuBtn icon={Info} label="How to Fly" onClick={onHow} />
-          <MenuBtn icon={SettingsIcon} label="Systems" onClick={onSettings} />
-        </div>
-
-        <div className="anim-fade-up menu-stars mt-4 flex items-center gap-2 border border-amber-300/30 bg-amber-400/10 px-4 py-1.5 sm:mt-5" style={{ animationDelay: "290ms" }}>
-          <Star className="h-4 w-4 text-amber-300" fill="currentColor" />
-          <span className="hud-num font-display text-sm tracking-[0.2em] text-amber-200">{fmtScore(stars)}</span>
-          <span className="font-display text-[10px] tracking-[0.25em] text-amber-200/60">STARS</span>
-        </div>
-
-        <div className="anim-fade-up menu-best mt-5 flex items-center gap-3 font-display text-[10px] tracking-[0.25em] text-white/45 sm:mt-7 sm:text-xs" style={{ animationDelay: "320ms" }}>
-          <Trophy className="h-4 w-4 text-amber-300" />
-          {bestAll > 0 ? (
-            <>BEST PILOT SCORE <span className="hud-num text-amber-200">{fmtScore(bestAll)}</span></>
-          ) : (
-            <>NO FLIGHT RECORDS — MAKE ONE</>
-          )}
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+            <MenuBtn icon={Rocket} label="Hangar" onClick={onHangar} small />
+            <MenuBtn icon={Medal} label="Ranks" onClick={onBoard} small />
+            <MenuBtn icon={BookOpen} label="Tutorial" onClick={onTutorial} small />
+            <MenuBtn icon={SettingsIcon} label="Systems" onClick={onSettings} small />
+          </div>
+          <button
+            type="button"
+            onClick={onHow}
+            className="cursor-pointer text-center font-display text-[10px] tracking-[0.3em] text-white/35 transition-colors hover:text-cyan-300"
+          >
+            <Info className="mr-1.5 inline h-3 w-3" />
+            FLIGHT MANUAL
+          </button>
         </div>
       </div>
 
@@ -317,17 +368,23 @@ export function LevelSelect({
         );
       })}
 
-      {/* endless */}
+      {/* bonus modes */}
       <div className="mb-2">
         <div
-          className="mb-2.5 flex items-center gap-3 border-l-4 bg-white/[0.04] px-3 py-2"
+          className="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 border-l-4 bg-white/[0.04] px-3 py-2"
           style={{ borderColor: "#00f0ff" }}
         >
-          <span className="font-display text-sm font-black tracking-[0.25em] text-cyan-300">BONUS</span>
-          <span className="font-display text-sm font-bold tracking-[0.2em] text-white">NEVER-ENDING</span>
+          <span className="font-display text-sm font-black tracking-[0.25em] text-cyan-300">BONUS MODES</span>
+          <span className="font-display text-sm font-bold tracking-[0.2em] text-white">ALWAYS OPEN</span>
+          <p className="w-full text-xs leading-snug text-white/45">
+            Endless survival, a 45-second time chase where gates buy you seconds, and a one-hull gauntlet.
+          </p>
         </div>
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5 lg:grid-cols-4">
           <LevelCard lv={ENDLESS_LEVEL} locked={false} onSelect={() => onSelect(ENDLESS_LEVEL)} delay={0} />
+          {EXTRA_MODES.map((m, i) => (
+            <LevelCard key={m.id} lv={m} locked={false} onSelect={() => onSelect(m)} delay={(i + 1) * 40} />
+          ))}
         </div>
       </div>
 
@@ -357,7 +414,7 @@ function StatBar({ label, v }: { label: string; v: number }) {
 }
 
 export function Hangar({
-  stars, owned, selected, onBuy, onSelect, onBack, onRev,
+  stars, owned, selected, onBuy, onSelect, onBack, onRev, onUpgrade, onPrestige,
 }: {
   stars: number;
   owned: string[];
@@ -366,7 +423,11 @@ export function Hangar({
   onSelect: (s: ShipDef) => void;
   onBack: () => void;
   onRev: (s: ShipDef) => void;
+  onUpgrade: (s: ShipDef, k: UpgradeKind) => void;
+  onPrestige: () => void;
 }) {
+  const prestige = getPrestige();
+  const spent = getSpent();
   return (
     <Overlay>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
@@ -468,7 +529,52 @@ export function Hangar({
                 <StatBar label="CELL" v={(1.4 - s.boostDrain) / 0.9} />
               </div>
 
-              <div className="mt-4">
+              {/* upgrades — where late-game stars go */}
+              {isOwned && (
+                <div className="mt-2.5 border border-white/10 bg-black/25 p-2">
+                  <div className="mb-1.5 font-display text-[8px] tracking-[0.25em] text-white/40">
+                    UPGRADES
+                  </div>
+                  {(["hull", "handling", "boost"] as UpgradeKind[]).map((k) => {
+                    const tier = getUpgrades(s.id)[k];
+                    const maxed = tier >= MAX_TIER;
+                    const cost = upgradeCost(tier);
+                    const afford = stars >= cost;
+                    return (
+                      <div key={k} className="flex items-center gap-2 py-0.5">
+                        <span className="w-14 font-display text-[8px] tracking-[0.1em] text-white/45">
+                          {k.toUpperCase()}
+                        </span>
+                        <span className="flex flex-1 gap-0.5">
+                          {Array.from({ length: MAX_TIER }, (_, n) => (
+                            <span
+                              key={n}
+                              className="h-1.5 flex-1 rounded-full"
+                              style={{ background: n < tier ? hexCss(s.glowColor) : "rgba(255,255,255,0.12)" }}
+                            />
+                          ))}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={maxed || !afford}
+                          onClick={() => onUpgrade(s, k)}
+                          className={`w-14 border px-1 py-0.5 text-center font-display text-[8px] tracking-[0.05em] transition-colors ${
+                            maxed
+                              ? "border-white/10 text-white/25"
+                              : afford
+                                ? "cursor-pointer border-amber-300/50 text-amber-200 hover:bg-amber-300 hover:text-black"
+                                : "cursor-not-allowed border-white/10 text-white/25"
+                          }`}
+                        >
+                          {maxed ? "MAX" : `★${cost}`}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="mt-3">
                 {isActive ? (
                   <div className="w-full border border-white/15 bg-white/5 py-2 text-center font-display text-[10px] tracking-[0.3em] text-white/70">
                     IN SERVICE
@@ -502,8 +608,62 @@ export function Hangar({
           );
         })}
       </div>
-      <p className="mt-5 text-center font-display text-[10px] tracking-[0.3em] text-white/35">
-        COLLECT STARS IN FLIGHT TO BUY NEW CRAFT
+      {/* STAR VAULT — prestige: the endless star sink */}
+      <div
+        className="anim-fade-up mt-5 overflow-hidden border p-4 sm:p-5"
+        style={{
+          borderColor: "rgba(255,209,102,0.32)",
+          background: "linear-gradient(140deg, rgba(255,209,102,0.13), rgba(255,122,217,0.06), transparent)",
+        }}
+      >
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Crown className="h-4 w-4 text-amber-300" />
+          <span className="font-display text-[10px] tracking-[0.4em] text-amber-300">STAR VAULT</span>
+          <span className="ml-auto font-display text-[9px] tracking-[0.2em] text-white/40">
+            LIFETIME SPENT ★{fmtScore(spent)}
+          </span>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-end gap-x-6 gap-y-3">
+          <div>
+            <div className="font-display text-[9px] tracking-[0.25em] text-white/45">PILOT RANK</div>
+            <div className="mt-0.5 flex items-baseline gap-2">
+              <span className="font-display text-2xl font-black tracking-[0.1em] text-amber-200 sm:text-3xl">
+                {prestigeTitle(prestige)}
+              </span>
+              <span className="hud-num font-display text-sm text-white/50">LV {prestige}</span>
+            </div>
+          </div>
+          <div>
+            <div className="font-display text-[9px] tracking-[0.25em] text-white/45">SCORE BONUS</div>
+            <div className="hud-num mt-0.5 font-display text-2xl font-black text-cyan-300 sm:text-3xl">
+              +{Math.round((prestigeBonus(prestige) - 1) * 100)}%
+            </div>
+          </div>
+        </div>
+
+        <p className="mt-2 text-xs leading-snug text-white/45">
+          Spend stars to promote your pilot. Every rank permanently boosts <b>all</b> future
+          scores and upgrades your leaderboard title. Ranks never stop.
+        </p>
+
+        <button
+          type="button"
+          disabled={stars < prestigeCost(prestige)}
+          onClick={onPrestige}
+          className={`btn-sheen clip-notch mt-3 flex w-full items-center justify-center gap-2 border py-2.5 font-display text-[11px] tracking-[0.25em] transition-colors sm:w-auto sm:px-8 ${
+            stars >= prestigeCost(prestige)
+              ? "cursor-pointer border-amber-300/70 bg-amber-400/20 text-amber-100 hover:bg-amber-300 hover:text-black"
+              : "cursor-not-allowed border-white/12 text-white/30"
+          }`}
+        >
+          <Crown className="h-4 w-4" />
+          PROMOTE TO {prestigeTitle(prestige + 1)} · ★{fmtScore(prestigeCost(prestige))}
+        </button>
+      </div>
+
+      <p className="mt-4 text-center font-display text-[10px] tracking-[0.3em] text-white/35">
+        STARS BUY CRAFT → UPGRADES → PILOT RANKS. NOTHING IS EVER WASTED.
       </p>
     </Overlay>
   );
@@ -580,23 +740,18 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   );
 }
 
-export function SettingsPanel({
-  s, onChange, onBack, fpsLive, refreshHz,
+/* NOTE: these live at module scope on purpose. Defining them inside
+   SettingsPanel made React treat them as new component types on every
+   render, unmounting the subtree mid-click so buttons stopped working. */
+function SegBtn({
+  active, label, onClick, dim,
 }: {
-  s: Settings;
-  onChange: (s: Settings) => void;
-  onBack: () => void;
-  fpsLive: number;
-  refreshHz: number;
+  active: boolean;
+  label: string;
+  onClick: () => void;
+  dim?: boolean;
 }) {
-  const SegBtn = ({
-    active, label, onClick, dim,
-  }: {
-    active: boolean;
-    label: string;
-    onClick: () => void;
-    dim?: boolean;
-  }) => (
+  return (
     <button
       type="button"
       onClick={onClick}
@@ -612,8 +767,10 @@ export function SettingsPanel({
       {label}
     </button>
   );
+}
 
-  const Row = ({ label, desc, right }: { label: string; desc: string; right: ReactNode }) => (
+function Row({ label, desc, right }: { label: string; desc: string; right: ReactNode }) {
+  return (
     <div className="flex flex-col gap-3 border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-4">
       <div className="min-w-0">
         <div className="font-display text-xs font-bold tracking-[0.2em] text-white sm:text-sm">{label}</div>
@@ -622,6 +779,25 @@ export function SettingsPanel({
       <div className="shrink-0">{right}</div>
     </div>
   );
+}
+
+export function SettingsPanel({
+  s, onChange, onBack, fpsLive, refreshHz, board,
+}: {
+  s: Settings;
+  onChange: (s: Settings) => void;
+  onBack: () => void;
+  fpsLive: number;
+  refreshHz: number;
+  board: {
+    id: string;
+    busy: boolean;
+    msg: string;
+    onCreate: () => void;
+    onJoin: (v: string) => void;
+    onLeave: () => void;
+  };
+}) {
 
   return (
     <Overlay>
@@ -654,7 +830,7 @@ export function SettingsPanel({
             label="FPS LIMIT"
             desc={
               refreshHz > 0
-                ? `Your display runs at ${refreshHz}Hz — that is the hardware ceiling.`
+                ? `Detected display: ${refreshHz}Hz. Browsers lock rendering to your screen's refresh rate, so ${refreshHz} FPS is the true ceiling — set MAX to use all of it.`
                 : "Cap the frame rate — MAX uses your display's full refresh rate."
             }
             right={
@@ -690,6 +866,78 @@ export function SettingsPanel({
             desc="Dynamically scales resolution to hold a steady frame rate"
             right={<Toggle on={s.autoPerf} onClick={() => onChange({ ...s, autoPerf: !s.autoPerf })} />}
           />
+
+          <div className="mt-2 flex items-center gap-3">
+            <Trophy className="h-4 w-4 text-amber-300/80" />
+            <span className="font-display text-[10px] tracking-[0.4em] text-amber-300/80">ONLINE BOARD</span>
+            <span className="h-px flex-1 bg-white/10" />
+          </div>
+
+          <div className="border border-white/10 bg-white/[0.03] p-3 sm:p-4">
+            <div className="font-display text-xs font-bold tracking-[0.2em] text-white sm:text-sm">
+              SHARED LEADERBOARD
+            </div>
+            <div className="mt-0.5 text-xs leading-snug text-white/50">
+              {board.id
+                ? "Connected. Share your game link and everyone competes on the same board."
+                : "Create a board to sync scores across devices and friends. No account needed."}
+            </div>
+
+            {board.id && (
+              <div className="mt-2.5 flex items-center gap-2 border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1.5">
+                <Wifi className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                <code className="truncate font-mono text-[11px] text-emerald-200">{board.id}</code>
+              </div>
+            )}
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {!board.id && (
+                <button
+                  type="button"
+                  disabled={board.busy}
+                  onClick={board.onCreate}
+                  className="cursor-pointer border border-amber-300/60 bg-amber-400/15 px-3 py-2 font-display text-[10px] tracking-[0.2em] text-amber-100 transition-colors hover:bg-amber-300 hover:text-black disabled:opacity-50"
+                >
+                  {board.busy ? "CREATING…" : "CREATE BOARD"}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  const v = window.prompt("Paste a board ID or a shared game link:");
+                  if (v) board.onJoin(v);
+                }}
+                className="cursor-pointer border border-white/20 px-3 py-2 font-display text-[10px] tracking-[0.2em] text-white/70 transition-colors hover:border-cyan-300/50 hover:text-white"
+              >
+                JOIN BOARD
+              </button>
+              {board.id && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = `${window.location.origin}${window.location.pathname}?board=${board.id}`;
+                      void navigator.clipboard?.writeText(url);
+                      board.onJoin(board.id);
+                    }}
+                    className="cursor-pointer border border-cyan-300/50 bg-cyan-400/10 px-3 py-2 font-display text-[10px] tracking-[0.2em] text-cyan-200 transition-colors hover:bg-cyan-300 hover:text-black"
+                  >
+                    COPY INVITE LINK
+                  </button>
+                  <button
+                    type="button"
+                    onClick={board.onLeave}
+                    className="cursor-pointer border border-white/15 px-3 py-2 font-display text-[10px] tracking-[0.2em] text-white/45 transition-colors hover:border-red-400/50 hover:text-red-300"
+                  >
+                    DISCONNECT
+                  </button>
+                </>
+              )}
+            </div>
+            {board.msg && (
+              <div className="mt-2 text-[11px] leading-snug text-cyan-200/80">{board.msg}</div>
+            )}
+          </div>
 
           <div className="mt-2 flex items-center gap-3">
             <Layers className="h-4 w-4 text-cyan-300/70" />

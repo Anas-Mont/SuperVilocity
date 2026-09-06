@@ -81,6 +81,20 @@ export default function HUD({
               {hud.endless ? `${hud.dist}M` : `${hud.dist}/${hud.target}M`}
             </span>
           </div>
+          {hud.timeLeft > 0 && (
+            <div
+              className={`mb-1 text-center font-display text-2xl font-black leading-none sm:text-4xl ${
+                hud.timeLeft <= 5 ? "anim-blink" : ""
+              }`}
+              style={{
+                color: hud.timeLeft <= 5 ? "#ff5e6e" : hud.timeLeft <= 12 ? "#ffd166" : "#fff",
+                textShadow: "0 0 18px rgba(0,0,0,0.7)",
+              }}
+            >
+              {hud.timeLeft.toFixed(1)}
+              <span className="ml-0.5 text-[10px] tracking-widest opacity-60">S</span>
+            </div>
+          )}
           <div className="h-[5px] overflow-hidden rounded-full bg-white/12 sm:h-[7px]">
             <div
               className="h-full rounded-full transition-[width] duration-200"

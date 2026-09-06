@@ -27,9 +27,25 @@ interface SaveData {
   stars: number; // spendable currency
   owned: string[]; // ship ids
   ship: string; // selected ship id
+  name: string; // pilot callsign for the leaderboard
+  boardId: string; // online leaderboard id ("" = offline)
+  tutorialDone: boolean;
+  /** per-craft upgrade tiers: { shipId: { hull, handling, boost } } 0..3 */
+  upgrades: Record<string, { hull: number; handling: number; boost: number }>;
+  /** prestige level — the endless star sink */
+  prestige: number;
+  /** total stars ever spent (lifetime stat) */
+  spent: number;
 }
 
-const KEY = "skyvector_save_v2";
+/**
+ * PERMANENT SAVE KEY — never rename this again.
+ * Renaming it orphans every player's progress on the next deploy.
+ * New fields must be added with defaults in load() instead.
+ */
+const KEY = "supervelocity_save";
+/** Older keys are migrated once, newest first. */
+const LEGACY_KEYS = ["skyvector_save_v2", "skyvector_save_v1"];
 
 const DEFAULTS: SaveData = {
   unlocked: 0,
@@ -42,11 +58,32 @@ const DEFAULTS: SaveData = {
   stars: 0,
   owned: ["dart"],
   ship: "dart",
+  name: "",
+  boardId: "",
+  tutorialDone: false,
+  upgrades: {},
+  prestige: 0,
+  spent: 0,
 };
 
 function load(): SaveData {
   try {
-    const raw = localStorage.getItem(KEY);
+    let raw = localStorage.getItem(KEY);
+    // one-time migration so updates never wipe progress
+    if (!raw) {
+      for (const k of LEGACY_KEYS) {
+        const old = localStorage.getItem(k);
+        if (old) {
+          raw = old;
+          try {
+            localStorage.setItem(KEY, old);
+          } catch {
+            /* ignore */
+          }
+          break;
+        }
+      }
+    }
     if (!raw) return structuredClone(DEFAULTS);
     const parsed = JSON.parse(raw) as Partial<SaveData>;
     const settings = { ...DEFAULTS.settings, ...(parsed.settings ?? {}) };
@@ -63,6 +100,12 @@ function load(): SaveData {
       stars: typeof parsed.stars === "number" ? parsed.stars : 0,
       owned,
       ship: typeof parsed.ship === "string" && owned.includes(parsed.ship) ? parsed.ship : owned[0],
+      name: typeof parsed.name === "string" ? parsed.name : "",
+      boardId: typeof parsed.boardId === "string" ? parsed.boardId : "",
+      tutorialDone: !!parsed.tutorialDone,
+      upgrades: parsed.upgrades ?? {},
+      prestige: typeof parsed.prestige === "number" ? parsed.prestige : 0,
+      spent: typeof parsed.spent === "number" ? parsed.spent : 0,
     };
   } catch {
     return structuredClone(DEFAULTS);
@@ -123,6 +166,76 @@ export const ownShip = (id: string) => {
   if (!cache.owned.includes(id)) cache.owned.push(id);
   persist();
 };
+export const getName = () => cache.name;
+export const setName = (n: string) => {
+  cache.name = n.slice(0, 14);
+  persist();
+};
+
+export const getBoardId = () => cache.boardId;
+export const setBoardId = (id: string) => {
+  cache.boardId = id;
+  persist();
+};
+
+export const isTutorialDone = () => cache.tutorialDone;
+export const setTutorialDone = () => {
+  cache.tutorialDone = true;
+  persist();
+};
+
+/* ---------------- upgrades (the late-game star sink) ---------------- */
+
+export type UpgradeKind = "hull" | "handling" | "boost";
+export const MAX_TIER = 3;
+
+export const getUpgrades = (shipId: string) =>
+  cache.upgrades[shipId] ?? { hull: 0, handling: 0, boost: 0 };
+
+/** Cost climbs per tier so stars stay valuable forever. */
+export const upgradeCost = (tier: number) => 150 + tier * 220;
+
+export function buyUpgrade(shipId: string, kind: UpgradeKind): boolean {
+  const cur = getUpgrades(shipId);
+  if (cur[kind] >= MAX_TIER) return false;
+  const cost = upgradeCost(cur[kind]);
+  if (cache.stars < cost) return false;
+  cache.stars -= cost;
+  cache.spent += cost;
+  cache.upgrades[shipId] = { ...cur, [kind]: cur[kind] + 1 };
+  persist();
+  return true;
+}
+
+/* ---------------- PRESTIGE — the infinite star sink ---------------- */
+
+export const PRESTIGE_TITLES = [
+  "ROOKIE", "CADET", "AVIATOR", "ACE", "VETERAN", "ELITE",
+  "MAVERICK", "LEGEND", "MYTHIC", "IMMORTAL", "TRANSCENDENT",
+];
+
+export const getPrestige = () => cache.prestige;
+export const getSpent = () => cache.spent;
+
+/** Cost scales so it always stays a meaningful goal. */
+export const prestigeCost = (level: number) => 800 + level * 650;
+
+/** Each level adds +4% score, capped so it never breaks the leaderboard. */
+export const prestigeBonus = (level: number) => 1 + Math.min(1, level * 0.04);
+
+export const prestigeTitle = (level: number) =>
+  PRESTIGE_TITLES[Math.min(level, PRESTIGE_TITLES.length - 1)];
+
+export function buyPrestige(): boolean {
+  const cost = prestigeCost(cache.prestige);
+  if (cache.stars < cost) return false;
+  cache.stars -= cost;
+  cache.spent += cost;
+  cache.prestige += 1;
+  persist();
+  return true;
+}
+
 export const getShip = () => cache.ship;
 export const selectShip = (id: string) => {
   if (cache.owned.includes(id)) {

@@ -169,6 +169,10 @@ export interface LevelConfig {
   weights: HazardWeights;
   starChance: number;
   endless?: boolean;
+  /** TIME ATTACK: start with this many seconds; gates/stars add time. */
+  timed?: number;
+  /** GAUNTLET: single hull point, no repairs. */
+  oneLife?: boolean;
 }
 
 export interface StageInfo {
@@ -303,6 +307,26 @@ export const LEVELS: LevelConfig[] = [
     starChance: 0.35, endless: true,
   },
 ];
+
+/* ---------------- extra modes (unlocked, always available) ---------------- */
+
+export const TIME_ATTACK: LevelConfig = {
+  id: 90, stage: 3, name: "TIME ATTACK", tag: "BEAT THE CLOCK", theme: THEMES.dusk,
+  target: Infinity, targetLabel: "⏱ 45S", baseSpeed: 68, maxSpeed: 175,
+  spawnStart: 1.05, spawnMin: 0.5,
+  weights: W(0.2, 0.16, 0.14, 0.12, 0.18, 0.1, 0.06, 0.04),
+  starChance: 0.5, endless: true, timed: 45,
+};
+
+export const GAUNTLET: LevelConfig = {
+  id: 91, stage: 3, name: "GAUNTLET", tag: "ONE LIFE", theme: THEMES.void,
+  target: Infinity, targetLabel: "☠ 1 HULL", baseSpeed: 62, maxSpeed: 185,
+  spawnStart: 1.15, spawnMin: 0.46,
+  weights: W(0.18, 0.16, 0.14, 0.12, 0.06, 0.16, 0.1, 0.08),
+  starChance: 0.34, endless: true, oneLife: true,
+};
+
+export const EXTRA_MODES: LevelConfig[] = [TIME_ATTACK, GAUNTLET];
 
 export const ZONES = LEVELS.filter((l) => !l.endless);
 export const ENDLESS_LEVEL = LEVELS.find((l) => l.endless)!;
